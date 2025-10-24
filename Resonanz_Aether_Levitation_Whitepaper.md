@@ -188,6 +188,4 @@ Beide zusammen ergeben ein konsistentes Bild:
 
 ```
 
- 
-Das könnte z. B. beim Export direkt im „Report“-Tab deines Gradio-Interfaces erzeugt werden.
-```
+
