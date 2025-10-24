@@ -1,0 +1,47 @@
+name: aether-ci
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy matplotlib pandas scipy
+
+      - name: Run batch pipeline
+        run: |
+          python - << 'PY'
+          import os, json
+          from aether_gradio_suite_pro import run_fit_pipeline
+          outdir, *_ = run_fit_pipeline()
+          print("OUTDIR", outdir)
+          # pack to zip
+          import zipfile
+          zpath = os.path.join(outdir, "aether_artifacts.zip")
+          with zipfile.ZipFile(zpath, 'w', zipfile.ZIP_DEFLATED) as z:
+              for fn in os.listdir(outdir):
+                  z.write(os.path.join(outdir, fn), arcname=fn)
+          print("ZIP", zpath)
+          PY
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aether_artifacts
+          path: |
+            /home/runner/work/**/aether_fit_*/aether_artifacts.zip
+          if-no-files-found: warn
