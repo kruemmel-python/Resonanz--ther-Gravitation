@@ -6,9 +6,11 @@ Autor: [Dein Name]
 Datum: 2025-10-23
 """
 
-import os, math, textwrap, datetime
+import os, textwrap, datetime
 import numpy as np
 import matplotlib.pyplot as plt
+import warnings
+warnings.filterwarnings("ignore", message="This figure includes Axes that are not compatible with tight_layout")
 
 try:
     from scipy.optimize import minimize
@@ -157,23 +159,95 @@ def simulate_drop_hybrid(pars, h0=10.0, dt=0.002, tmax=6.0, fm=None, fa=None, bw
     return t, z, v
 
 # ----------------------------------
-# 4) Visualisierung
+# 4) Visualisierung – Profile/Residuen/Fehler/Zoom/Feld/Drop
 # ----------------------------------
 def plot_profiles(res1, res2, res3):
     g1 = g_exp1(r_grid, res1["k"])
     g2 = g_exp2(r_grid, res2["k1"], res2["k2"], res2["w"])
     g3 = g_hybrid(r_grid, [res3["k1"], res3["a1"], res3["k2"], res3["a2"]])
 
-    plt.figure(figsize=(8,5))
-    plt.plot((r_grid - R)/1000, GT, 'k', lw=2, label='Ziel 1/r²')
-    plt.plot((r_grid - R)/1000, g1, '--', label='A) 1×Exp')
-    plt.plot((r_grid - R)/1000, g2, ':', label='B) 2×Exp')
-    plt.plot((r_grid - R)/1000, g3, '-', label='C) Hybrid (best)')
+    xkm = (r_grid - R) / 1000.0
+    plt.figure(figsize=(9,5.4))
+    plt.plot(xkm, g_target(r_grid), color='k', lw=3.0, label='Ziel 1/r²', zorder=10)
+    plt.plot(xkm, g1, color='#1f77b4', lw=2.5, ls='--', alpha=0.95, label='A) 1×Exp', zorder=8)
+    plt.plot(xkm, g2, color='#ff7f0e', lw=3.0, ls=':', alpha=0.9, label='B) 2×Exp',
+             zorder=12, markevery=40, marker='o', ms=4)
+    plt.plot(xkm, g3, color='#2ca02c', lw=2.8, alpha=0.75, label='C) Hybrid (best)', zorder=11)
     plt.xlabel('Höhe [km]'); plt.ylabel('g(r) [m/s²]')
-    plt.title('Modelle vs. Referenz'); plt.grid(); plt.legend()
+    plt.title('Modelle vs. Referenz'); plt.grid(True, alpha=0.25); plt.legend(framealpha=1.0, fontsize=10)
     path = os.path.join(OUTDIR, "profiles.png")
-    plt.tight_layout(); plt.savefig(path, dpi=160); plt.close()
+    plt.tight_layout(); plt.savefig(path, dpi=170); plt.close()
     return path
+
+def plot_residuals(res1, res2, res3):
+    g1 = g_exp1(r_grid, res1["k"])
+    g2 = g_exp2(r_grid, res2["k1"], res2["k2"], res2["w"])
+    g3 = g_hybrid(r_grid, [res3["k1"], res3["a1"], res3["k2"], res3["a2"]])
+    gt = g_target(r_grid)
+
+    xkm = (r_grid - R) / 1000.0
+    plt.figure(figsize=(9,4.6))
+    plt.axhline(0, color='k', lw=1)
+    plt.plot(xkm, g1-gt, color='#1f77b4', ls='--', lw=2.0, label='A) 1×Exp')
+    plt.plot(xkm, g2-gt, color='#ff7f0e', ls=':', lw=2.2, label='B) 2×Exp',
+             markevery=40, marker='o', ms=3.5)
+    plt.plot(xkm, g3-gt, color='#2ca02c', lw=2.2, alpha=0.9, label='C) Hybrid (best)')
+    plt.xlabel('Höhe [km]'); plt.ylabel('Δg [m/s²]')
+    plt.title('Residuen gegenüber 1/r²')
+    plt.grid(True, alpha=0.25); plt.legend(framealpha=1.0)
+    path = os.path.join(OUTDIR, "residuals.png")
+    plt.tight_layout(); plt.savefig(path, dpi=170); plt.close()
+    return path
+
+def plot_percent_error(res2, res3):
+    gt = g_target(r_grid)
+    g2 = g_exp2(r_grid, res2["k1"], res2["k2"], res2["w"])
+    g3 = g_hybrid(r_grid, [res3["k1"],res3["a1"],res3["k2"],res3["a2"]])
+
+    pe2 = (g2-gt)/gt*100.0
+    pe3 = (g3-gt)/gt*100.0
+
+    xkm = (r_grid - R)/1000.0
+    plt.figure(figsize=(9,4.6))
+    plt.axhline(0, color='k', lw=1)
+    plt.plot(xkm, pe2, color='#ff7f0e', ls=':', lw=2.0, label='B) 2×Exp')
+    plt.plot(xkm, pe3, color='#2ca02c', lw=2.2, label='C) Hybrid (best)')
+    plt.xlabel('Höhe [km]'); plt.ylabel('Fehler [%]')
+    plt.title('Relativer Fehler gegenüber 1/r²')
+    plt.grid(True, alpha=0.3); plt.legend()
+    path = os.path.join(OUTDIR, "percent_error.png")
+    plt.tight_layout(); plt.savefig(path, dpi=170); plt.close()
+    return path
+
+def plot_zoom_with_delta(res2, res3):
+    """Zoom-Plot + Inset (Δg×50), ohne tight_layout-Warnung."""
+    gt = g_target(r_grid)
+    g2 = g_exp2(r_grid, res2["k1"], res2["k2"], res2["w"])
+    g3 = g_hybrid(r_grid, [res3["k1"],res3["a1"],res3["k2"],res3["a2"]])
+    xkm = (r_grid - R)/1000.0
+    mask = (xkm>=2500) & (xkm<=9000)
+
+    # Wichtig: constrained_layout statt tight_layout
+    fig, ax = plt.subplots(figsize=(9,5.2), constrained_layout=True)
+    ax.plot(xkm[mask], gt[mask], 'k', lw=2.5, label='Ziel 1/r²')
+    ax.plot(xkm[mask], g2[mask], color='#ff7f0e', ls=':', lw=2.5, label='B) 2×Exp')
+    ax.plot(xkm[mask], g3[mask], color='#2ca02c', lw=2.2, label='C) Hybrid')
+    ax.set_xlabel('Höhe [km]'); ax.set_ylabel('g(r) [m/s²]')
+    ax.set_title('Zoom: Modelle vs. Referenz (2.5–9 Mm)')
+    ax.grid(True, alpha=0.3); ax.legend()
+
+    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+    inset = inset_axes(ax, width="45%", height="45%", loc="lower left", borderpad=2)
+    inset.axhline(0, color='k', lw=1)
+    inset.plot(xkm[mask], 50*(g2[mask]-gt[mask]), color='#ff7f0e', ls=':', lw=2.0, label='50×Δg(B)')
+    inset.plot(xkm[mask], 50*(g3[mask]-gt[mask]), color='#2ca02c', lw=2.0, label='50×Δg(C)')
+    inset.set_title('Δg × 50'); inset.grid(True, alpha=0.3)
+
+    path = os.path.join(OUTDIR, "zoom_delta.png")
+    fig.savefig(path, dpi=170)  # kein tight_layout() hier
+    plt.close(fig)
+    return path
+
 
 def plot_drop(pars):
     t1, z1, v1 = simulate_drop_hybrid(pars)
@@ -221,8 +295,36 @@ def plot_field_slice(pars):
     return path
 
 # ----------------------------------
-# 5) Report
+# 5) Numerische Diagnostik & Report
 # ----------------------------------
+def diagnostics_print(res2, res3):
+    """Numerische Checks: Fehlerstatistiken & Tabelle ausgewählter Höhen."""
+    heights_km = np.array([0, 1000, 3000, 6000, 9000, 12000], dtype=float)
+    r_samples = R + heights_km*1000.0
+    gt = g_target(r_samples)
+
+    g2 = g_exp2(r_samples, res2["k1"], res2["k2"], res2["w"])
+    g3 = g_hybrid(r_samples, [res3["k1"],res3["a1"],res3["k2"],res3["a2"]])
+
+    err2 = g2 - gt
+    err3 = g3 - gt
+    rel2 = err2/gt*100.0
+    rel3 = err3/gt*100.0
+
+    print("\n--- Detaildiagnose vs. 1/r^2 ---")
+    print("Höhe[km]   g_Ziel   g_B(2×Exp)  Δg_B   Rel_B[%]   g_C(Hybrid)  Δg_C   Rel_C[%]")
+    for hk, gz, gb, e2, r2, gc, e3, r3 in zip(heights_km, gt, g2, err2, rel2, g3, err3, rel3):
+        print(f"{hk:7.0f}  {gz:7.3f}  {gb:10.3f}  {e2:+6.3f}  {r2:+7.3f}   {gc:10.3f}  {e3:+6.3f}  {r3:+7.4f}")
+
+    g2_full = g_exp2(r_grid, res2["k1"], res2["k2"], res2["w"])
+    g3_full = g_hybrid(r_grid, [res3["k1"],res3["a1"],res3["k2"],res3["a2"]])
+    err2_full = g2_full - g_target(r_grid)
+    err3_full = g3_full - g_target(r_grid)
+
+    print("\nMax |Δg| B (2×Exp): {:.4f} m/s²".format(np.max(np.abs(err2_full))))
+    print("Max |Δg| C (Hybrid): {:.4e} m/s²".format(np.max(np.abs(err3_full))))
+    print("Max Rel-Fehler B: {:.3f}%".format(np.max(np.abs(err2_full/g_target(r_grid)*100.0))))
+
 def save_report(res1, res2, res3, figs):
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     rel = lambda f: f / g0 * 100
@@ -238,6 +340,9 @@ def save_report(res1, res2, res3, figs):
 
 ## Abbildungen
 ![]({os.path.basename(figs['profiles'])})
+![]({os.path.basename(figs['residuals'])})
+![]({os.path.basename(figs['percent'])})
+![]({os.path.basename(figs['zoom'])})
 ![]({os.path.basename(figs['drop'])})
 ![]({os.path.basename(figs['field'])})
 """
@@ -255,10 +360,21 @@ def main():
     res2 = fit_exp2()
     res3 = fit_hybrid()
     print("Fertig.\nErstelle Diagramme ...")
-    f1 = plot_profiles(res1, res2, res3)
-    f2 = plot_drop([res3["k1"], res3["a1"], res3["k2"], res3["a2"]])
-    f3 = plot_field_slice([res3["k1"], res3["a1"], res3["k2"], res3["a2"]])
-    rep = save_report(res1, res2, res3, {"profiles": f1, "drop": f2, "field": f3})
+
+    f1  = plot_profiles(res1, res2, res3)
+    f1b = plot_residuals(res1, res2, res3)
+    fpe = plot_percent_error(res2, res3)
+    fzm = plot_zoom_with_delta(res2, res3)
+    f2  = plot_drop([res3["k1"], res3["a1"], res3["k2"], res3["a2"]])
+    f3  = plot_field_slice([res3["k1"], res3["a1"], res3["k2"], res3["a2"]])
+
+    diagnostics_print(res2, res3)
+
+    rep = save_report(
+        res1, res2, res3,
+        {"profiles": f1, "residuals": f1b, "percent": fpe, "zoom": fzm, "drop": f2, "field": f3}
+    )
+
     print("=== Ergebnisse ===")
     print(f"1×Exp  RMSE = {res1['rmse']:.3e}")
     print(f"2×Exp  RMSE = {res2['rmse']:.3e}")
