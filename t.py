@@ -9,8 +9,6 @@ Datum: 2025-10-23
 import os, textwrap, datetime
 import numpy as np
 import matplotlib.pyplot as plt
-import warnings
-warnings.filterwarnings("ignore", message="This figure includes Axes that are not compatible with tight_layout")
 
 try:
     from scipy.optimize import minimize
